@@ -6,7 +6,9 @@ import drawCard from './templates/drawCard.js';
 import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
 
-const KEY_PIXABAY = `35768020-57bf980d1d69223dcc2d256cc`;
+import { search } from './templates/stateSearch.js';
+
+import Url from './api/url.js';
 
 const searchForm = document.querySelector('.search-form');
 searchForm.addEventListener('input', handleSearch);
@@ -20,26 +22,31 @@ gallereyInfo.addEventListener('click', onPalettContainerClick);
 const loadMore = document.querySelector('.load-more');
 loadMore.addEventListener('click', handleBtn);
 
+document.addEventListener('scroll', scrollGallerey);
+
 let galleryImage = new SimpleLightbox('.gallery a');
 galleryImage.on('show.simplelightbox', {
   captionDelay: '250',
 });
 
-const search = {
-  value: null,
-  page: null,
-  per_page: 40,
-  visibleBtn: false,
-};
-
 function visible_loadMore() {
+  if (!search.canBeScrolled) {
+    loadMore.style.display = 'none';
+
+    return;
+  }
   loadMore.style.display = !search.visibleBtn ? 'none' : 'block';
 }
 visible_loadMore();
 
 function handleSearch(e) {
+  searchBtn.disabled = false;
+  search.visibleBtn = false;
+
   search.value = e.target.value;
   search.page = 0;
+
+  visible_loadMore();
 }
 
 function drawGallery(cards) {
@@ -51,42 +58,51 @@ function drawGallery(cards) {
 }
 
 function receiveData({ data }) {
-  if (data.totalHits < search.page * search.per_page) {
-    search.page = 0;
-    search.visibleBtn = false;
-    visible_loadMore();
-    Notify.failure(
-      "We're sorry, but you've reached the end of search results."
-    );
-    return;
-  }
+  search.visibleBtn = false;
+  visible_loadMore();
 
   const gallerey = data.hits;
 
   if (gallerey.length > 0) {
+    if (data.totalHits < search.page * search.per_page) {
+
+      search.canBeScrolled = false;
+      search.visibleBtn = false;
+
+      visible_loadMore();
+
+      if (data.totalHits <= search.per_page) {
+        setTimeout(() => {
+          Notify.failure(
+            "We're sorry, but you've reached the end of search results."
+          );
+          searchBtn.disabled = true;
+        }, 2500);
+      }
+      if (search.page !== 1) {
+
+        search.page = 0;
+
+        searchBtn.disabled = true;
+        Notify.failure(
+          "We're sorry, but you've reached the end of search results."
+        );
+
+        return;
+      }
+    }
     const marcup = drawGallery(gallerey);
 
     if (marcup) {
       gallereyInfo.insertAdjacentHTML('beforeend', marcup);
       galleryImage.refresh();
     }
-
-    Notify.success(`Hooray! We found ${search.page * search.per_page} images.`);
+    if (search.page === 1) {
+      Notify.success(`Hooray! We found ${data.totalHits} images.`);
+    }
+    searchBtn.disabled = false;
     search.visibleBtn = true;
     visible_loadMore();
-
-    const { height: cardHeight, width: cardWidth } = document
-      .querySelector('.gallery')
-      .firstElementChild.getBoundingClientRect();
-    console.log({
-      height: cardHeight,
-      width: cardWidth,
-    });
-
-    window.scrollBy({
-      top: cardHeight * 14,
-      behavior: 'smooth',
-    });
 
     return;
   }
@@ -104,12 +120,23 @@ function errorGallery({ res }) {
   Notify.failure('Sorry, что-то пошло не так !!!.');
 }
 
+function validUrl() {
+  search.page += 1;
+  return Url();
+}
+
 function handleBtn(e) {
-  e.preventDefault();
+  searchBtn.disabled = true;
   search.visibleBtn = false;
+  search.loaded = true;
   visible_loadMore();
+  search.canBeScrolled = true;
+  if (e) {
+    e.preventDefault();
+  }
 
   if (!search.value) {
+    removeInnerHtml();
     Notify.failure('Виберіть критерій пошуку !!!.');
     return;
   }
@@ -119,12 +146,18 @@ function handleBtn(e) {
   }
 
   try {
-    search.page += 1;
-    const url = `https://pixabay.com/api/?key=${KEY_PIXABAY}&image_type=photo&orientation=horizontal&safesearch=true&q=${search.value}&page=${search.page}&per_page=${search.per_page}`;
-    API(url).then(receiveData).catch(errorGallery);
+    API(validUrl())
+      .then(receiveData)
+      .catch(errorGallery)
+      .finally(() => {
+        search.loaded = false;
+      });
   } catch (error) {
     console.log(error);
   }
+}
+function removeInnerHtml() {
+  gallereyInfo.innerHTML = '';
 }
 
 function onPalettContainerClick(e) {
@@ -138,4 +171,20 @@ function onPalettContainerClick(e) {
       galleryImage.close();
     }
   });
+}
+
+
+function scrollGallerey() {
+  const documentRect = document.documentElement.getBoundingClientRect();
+  if (documentRect.bottom < document.documentElement.clientHeight + 150) {
+    if (search.canBeScrolled) {
+      if (!search.loaded) {
+        searchBtn.disabled = false;
+        visible_loadMore();
+
+        handleBtn();
+        search.loaded = true;
+      }
+    }
+  }
 }
