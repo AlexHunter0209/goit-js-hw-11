@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { search } from '../templates/stateSearch';
+
 export default async function getPixabay(url) {
     const res = await axios.get(url);
     return res;
