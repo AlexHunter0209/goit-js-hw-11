@@ -58,13 +58,6 @@ function drawGallery(cards) {
 }
 
 function receiveData({ data }) {
-  if (search.page === 1 && data.totalHits === 0) {
-    Notify.failure(
-      'Sorry, there are no images matching your search query. Please try again.'
-    );
-    return;
-  }
-
   search.visibleBtn = false;
   visible_loadMore();
 
