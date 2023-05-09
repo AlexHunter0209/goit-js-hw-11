@@ -1,198 +1,137 @@
-import { Notify } from 'notiflix';
-import API from './api/api_server.js';
-
-import drawCard from './templates/drawCard.js';
-
+import Notiflix from 'notiflix';
+import axios from 'axios';
+import refs from './js/refs';
+import { getPictures } from './js/getPictures';
 import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
+// import { onBtnLoadMoreClick } from './js/onBtnLoadMoreClick';
+// import { renderPictureCard } from './js/renderPictureCard';
+// import { onFormSearch } from './js/onFormSearch';
+// import { onLoad } from './js/onLoad';
 
-import { search } from './templates/stateSearch.js';
+refs.formSearch.addEventListener('submit', onFormSearch);
+refs.btnLoadMore.addEventListener('click', onBtnLoadMoreClick);
 
-import Url from './api/url.js';
+let searchQuery = '';
+let page = 1;
+const perPage = 40;
 
-const searchForm = document.querySelector('.search-form');
-searchForm.addEventListener('input', handleSearch);
+// Нескінченний скрол
+let options = {
+  root: null,
+  rootMargin: '300px',
+  threshold: 1.0,
+};
+let observer = new IntersectionObserver(onLoad, options);
 
-const searchBtn = searchForm.querySelector('button');
-searchBtn.addEventListener('click', handleBtn);
+let allPicturesLoaded = false;
+let totalHits = 0;
 
-const gallereyInfo = document.querySelector('.gallery');
-gallereyInfo.addEventListener('click', onPalettContainerClick);
-
-const loadMore = document.querySelector('.load-more');
-loadMore.addEventListener('click', handleBtn);
-
-document.addEventListener('scroll', scrollGallerey);
-
-let galleryImage = new SimpleLightbox('.gallery a');
-galleryImage.on('show.simplelightbox', {
-  captionDelay: '250',
-});
-
-function visible_loadMore() {
-  if (!search.canBeScrolled) {
-    loadMore.style.display = 'none';
-
-    return;
-  }
-  loadMore.style.display = !search.visibleBtn ? 'none' : 'block';
-}
-visible_loadMore();
-
-function handleSearch(e) {
-  searchBtn.disabled = false;
-  search.visibleBtn = false;
-
-  search.value = e.target.value;
-  search.page = 0;
-
-  visible_loadMore();
-}
-
-function drawGallery(cards) {
-  return cards
-    .map(card => {
-      return drawCard(card);
-    })
-    .join('');
-}
-
-function receiveData({ data }) {
-  search.visibleBtn = false;
-  visible_loadMore();
-
-  const gallerey = data.hits;
-
-  if (gallerey.length > 0) {
-    if (data.totalHits < search.page * search.per_page) {
-
-      search.canBeScrolled = false;
-      search.visibleBtn = false;
-
-      visible_loadMore();
-
-      if (data.totalHits <= search.per_page) {
-        setTimeout(() => {
-          Notify.failure(
-            "We're sorry, but you've reached the end of search results."
-          );
-          searchBtn.disabled = true;
-        }, 2500);
-      }
-      if (search.page !== 1) {
-        if (data.totalHits === 0) {
-            search.page = 2;
-        } else {
-            search.page = 0;
-        }
-        searchBtn.disabled = true;
-        Notify.failure(
-        "We're sorry, but you've reached the end of search results."
-        );
-        return;
-    }
-      if (search.page === 1 && data.totalHits === 0) {
-
-        search.page = 2;
-        receiveData();
-
-        return;
-      }
-    }
-    const marcup = drawGallery(gallerey);
-
-    if (marcup) {
-      gallereyInfo.insertAdjacentHTML('beforeend', marcup);
-      galleryImage.refresh();
-    }
-    if (search.page === 1) {
-      Notify.success(`Hooray! We found ${data.totalHits} images.`);
-    }
-    searchBtn.disabled = false;
-    search.visibleBtn = true;
-    visible_loadMore();
-
-    return;
-  }
-
-  Notify.failure(
-    'Sorry, there are no images matching your search query. Please try again.'
-  );
-
-  search.page = 0;
-  search.visibleBtn = false;
-  visible_loadMore();
-}
-
-function errorGallery({ res }) {
-  Notify.failure('Sorry, что-то пошло не так !!!.');
-}
-
-function validUrl() {
-  search.page += 1;
-  return Url();
-}
-
-function handleBtn(e) {
-  searchBtn.disabled = true;
-  search.visibleBtn = false;
-  search.loaded = true;
-  visible_loadMore();
-  search.canBeScrolled = true;
-  if (e) {
-    e.preventDefault();
-  }
-
-  if (!search.value) {
-    removeInnerHtml();
-    Notify.failure('Виберіть критерій пошуку !!!.');
-    return;
-  }
-
-  if (!search.page) {
-    gallereyInfo.innerHTML = '';
-  }
-
-  try {
-    API(validUrl())
-      .then(receiveData)
-      .catch(errorGallery)
-      .finally(() => {
-        search.loaded = false;
-      });
-  } catch (error) {
-    console.log(error);
-  }
-}
-function removeInnerHtml() {
-  gallereyInfo.innerHTML = '';
-}
-
-function onPalettContainerClick(e) {
-  e.preventDefault();
-  if (!e.target.classList.contains('gallery__image')) {
-    return;
-  }
-
-  document.addEventListener('keydown', event => {
-    if (event.code === 'Escape') {
-      galleryImage.close();
+function onLoad(entries) {
+  entries.forEach(entry => {
+    if (entry.isIntersecting && perPage < totalHits) {
+      page += 1;
+      getPictures(searchQuery, page, perPage)
+        .then(data => {
+          renderPictureCard(data.hits);
+          SimpleLightbox.refresh();
+          //   perPage += data.hits.length;
+          if (perPage >= totalHits) {
+            allPicturesLoaded = true;
+            refs.btnLoadMore.hidden = true;
+          }
+        })
+        .catch(error => console.log(error));
     }
   });
 }
 
+function onFormSearch(e) {
+  e.preventDefault();
+  searchQuery = e.currentTarget.elements.searchQuery.value.trim();
+  refs.pictureContainer.innerHTML = '';
+  page = 1;
 
-function scrollGallerey() {
-  const documentRect = document.documentElement.getBoundingClientRect();
-  if (documentRect.bottom < document.documentElement.clientHeight + 150) {
-    if (search.canBeScrolled) {
-      if (!search.loaded) {
-        searchBtn.disabled = false;
-        visible_loadMore();
-
-        handleBtn();
-        search.loaded = true;
-      }
-    }
+  if (searchQuery === '') {
+    Notiflix.Notify.failure(
+      'The search string cannot be empty. Please specify your search query.'
+    );
+    return;
   }
+  getPictures(searchQuery, page, perPage)
+    .then(data => {
+      totalHits = data.totalHits;
+      if (totalHits === 0) {
+        Notiflix.Notify.failure(
+          'Sorry, there are no images matching your search query. Please try again.'
+        );
+      } else {
+        renderPictureCard(data.hits);
+        observer.observe(refs.target);
+        Notiflix.Notify.success(`Hooray! We found ${data.totalHits} images.`);
+      }
+    })
+    .catch(error => console.log(error))
+    .finally(() => {
+      refs.formSearch.reset();
+    });
+}
+
+function renderPictureCard(pictures) {
+  const markup = pictures
+    .map(
+      ({
+        id,
+        largeImageURL,
+        webformatURL,
+        tags,
+        likes,
+        views,
+        comments,
+        downloads,
+      }) => `<a class="gallery__link" href="${largeImageURL}"data-lb-group="search-results">
+      <div class="gallery-wrapper" id="${id}">
+           <img class="gallery__img" src="${webformatURL}" alt="${tags}" loading="lazy"  />
+            <div class="info">
+              <p class="info-item"><b>Likes</b> ${likes}</p>
+              <p class="info-item"><b>Views</b> ${views}</p>
+              <p class="info-item"><b>Comments</b> ${comments}</p>
+              <p class="info-item"><b>Downloads</b> ${downloads}</p>
+            </div>
+          </div>
+          </a>`
+    )
+    .join('');
+  refs.pictureContainer.insertAdjacentHTML('beforeend', markup);
+  const simpleLightBox = new SimpleLightbox('.gallery__link');
+
+  const { height: cardHeight } = document
+    .querySelector('.gallery')
+    .firstElementChild.getBoundingClientRect();
+
+  window.scrollBy({
+    top: cardHeight * 2,
+    behavior: 'smooth',
+  });
+}
+
+function onBtnLoadMoreClick() {
+  page += 1;
+
+  getPictures(searchQuery, page, perPage)
+    .then(data => {
+      renderPictureCard(data.hits);
+
+      const totalPages = Math.ceil(data.totalHits / perPage);
+
+      if (page > totalPages) {
+        refs.btnLoadMore.hidden = true;
+        Notiflix.Notify.failure(
+          "We're sorry, but you've reached the end of search results."
+        );
+      }
+      SimpleLightbox.refresh();
+    })
+
+    .catch(error => console.log(error));
 }
