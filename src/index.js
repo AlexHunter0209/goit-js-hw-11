@@ -97,7 +97,7 @@ function receiveData({ data }) {
       gallereyInfo.insertAdjacentHTML('beforeend', marcup);
       galleryImage.refresh();
     }
-    if (search.page === 1) {
+    if (search.page === 1 && data.totalHits === 0) {
       Notify.success(`Hooray! We found ${data.totalHits} images.`);
     }
     searchBtn.disabled = false;
