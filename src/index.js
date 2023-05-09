@@ -80,16 +80,18 @@ function receiveData({ data }) {
         }, 2500);
       }
       if (search.page !== 1) {
-
-        search.page = 0;
-
+        if (data.totalHits === 0) {
+            search.page = 2;
+        } else {
+            search.page = 0;
+        }
         searchBtn.disabled = true;
         Notify.failure(
-          "We're sorry, but you've reached the end of search results."
+        "We're sorry, but you've reached the end of search results."
         );
-
         return;
-      }
+    }
+        
       if (search.page === 1 && data.totalHits === 0) {
 
         search.page = 2;
