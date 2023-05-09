@@ -65,12 +65,9 @@ function receiveData({ data }) {
 
   if (gallerey.length > 0) {
     if (data.totalHits < search.page * search.per_page) {
-
       search.canBeScrolled = false;
       search.visibleBtn = false;
-
       visible_loadMore();
-
       if (data.totalHits <= search.per_page) {
         setTimeout(() => {
           Notify.failure(
@@ -80,23 +77,11 @@ function receiveData({ data }) {
         }, 2500);
       }
       if (search.page !== 1) {
-
-        search.page = 0;
-
-        searchBtn.disabled = true;
-        Notify.failure(
-          "We're sorry, but you've reached the end of search results."
-        );
-
+        search.page = 2; // відкриття другої сторінки
+        searchBtn.disabled = false; // робимо кнопку пошуку активною
+        searchPhotos(); // запускаємо пошук з новим параметром сторінки
         return;
-        }
-        
-    if (search.page === 1 && data.totalHits === 0) {
-        search.page = 2;
-        searchBtn.disabled = false;
-        searchBtn.click();
-        return;
-        }
+      }
     }
     const marcup = drawGallery(gallerey);
 
