@@ -63,14 +63,6 @@ function receiveData({ data }) {
 
   const gallerey = data.hits;
 
-    if (search.page === 1 && data.totalHits === 0) {
-
-        search.page = 2;
-        receiveData();
-
-        return;
-      }
-    
   if (gallerey.length > 0) {
     if (data.totalHits < search.page * search.per_page) {
 
@@ -86,8 +78,7 @@ function receiveData({ data }) {
           );
           searchBtn.disabled = true;
         }, 2500);
-    }
-        
+      }
       if (search.page !== 1) {
         if (data.totalHits === 0) {
             search.page = 2;
@@ -100,8 +91,13 @@ function receiveData({ data }) {
         );
         return;
     }
-        
-      
+      if (search.page === 1 && data.totalHits === 0) {
+
+        search.page = 2;
+        receiveData();
+
+        return;
+      }
     }
     const marcup = drawGallery(gallerey);
 
