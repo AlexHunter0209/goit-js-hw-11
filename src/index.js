@@ -89,7 +89,14 @@ function receiveData({ data }) {
         );
 
         return;
-      }
+        }
+        
+    if (search.page === 1 && data.totalHits === 0) {
+        search.page = 2;
+        searchBtn.disabled = false;
+        searchBtn.click();
+        return;
+        }
     }
     const marcup = drawGallery(gallerey);
 
